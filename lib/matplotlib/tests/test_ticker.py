@@ -511,35 +511,106 @@ def test_formatstrformatter():
     assert '002-01' == tmp_form(2, 1)
 
 
-percentformatter_test_cases = (
-    # Check explicitly set decimals over different intervals and values
-    (100, 0, '%', 120, 100, '120%'),
-    (100, 0, '%', 100, 90, '100%'),
-    (100, 0, '%', 90, 50, '90%'),
-    (100, 0, '%', 1.7, 40, '2%'),
-    (100, 1, '%', 90.0, 100, '90.0%'),
-    (100, 1, '%', 80.1, 90, '80.1%'),
-    (100, 1, '%', 70.23, 50, '70.2%'),
-    # 60.554 instead of 60.55: see https://bugs.python.org/issue5118
-    (100, 1, '%', 60.554, 40, '60.6%'),
-    # Check auto decimals over different intervals and values
-    (100, None, '%', 95, 1, '95.00%'),
-    (1.0, None, '%', 3, 6, '300%'),
-    (17.0, None, '%', 1, 8.5, '6%'),
-    (17.0, None, '%', 1, 8.4, '5.9%'),
-    (5, None, '%', -100, 0.000001, '-2000.00000%'),
-    # Check percent symbol
-    (1.0, 2, None, 1.2, 100, '120.00'),
-    (75, 3, '', 50, 100, '66.667'),
-    (42, None, '^^Foobar$$', 21, 12, '50.0^^Foobar$$'),
-)
-
-
 @pytest.mark.parametrize('xmax, decimals, symbol, x, display_range, expected',
-                         percentformatter_test_cases)
+    [
+        # Check explicitly set decimals over different intervals and values
+        (100, 0, '%', 120, 100, '120%'),
+        (100, 0, '%', 100, 90, '100%'),
+        (100, 0, '%', 90, 50, '90%'),
+        (100, 0, '%', 1.7, 40, '2%'),
+        (100, 1, '%', 90.0, 100, '90.0%'),
+        (100, 1, '%', 80.1, 90, '80.1%'),
+        (100, 1, '%', 70.23, 50, '70.2%'),
+        # 60.554 instead of 60.55: see https://bugs.python.org/issue5118
+        (100, 1, '%', 60.554, 40, '60.6%'),
+        # Check auto decimals over different intervals and values
+        (100, None, '%', 95, 1, '95.00%'),
+        (1.0, None, '%', 3, 6, '300%'),
+        (17.0, None, '%', 1, 8.5, '6%'),
+        (17.0, None, '%', 1, 8.4, '5.9%'),
+        (5, None, '%', -100, 0.000001, '-2000.00000%'),
+        # Check percent symbol
+        (1.0, 2, None, 1.2, 100, '120.00'),
+        (75, 3, '', 50, 100, '66.667'),
+        (42, None, '^^Foobar$$', 21, 12, '50.0^^Foobar$$'),
+     ])
 def test_percentformatter(xmax, decimals, symbol, x, display_range, expected):
     formatter = mticker.PercentFormatter(xmax, decimals, symbol)
     assert formatter.format_pct(x, display_range) == expected
+
+
+def test_TransformFormatter():
+    """
+    Verifies that the linear transformations are being done correctly.
+    """
+    def transform(x):
+        return -x
+
+    # Make a formatter using the default underlying formatter,
+    # which is a Formatter instance, not just a generic callable 
+    fmt = mticker.TransformFormatter(transform)
+
+    # Public (non-method) attributes
+    assert fmt.transform is transform
+    assert isinstance(fmt.formatter, mticker.ScalarFormatter)
+
+    # .create_dummy_axis
+    assert fmt.axis is None
+    fmt.create_dummy_axis()
+    assert fmt.axis is not None
+    assert fmt.axis is fmt.formatter.axis
+
+    # .set_axis
+    prev_axis = fmt.axis
+    fmt.set_axis(mticker._DummyAxis())
+    assert fmt.axis is fmt.formatter.axis
+    assert fmt.axis is not prev_axis
+
+    # .set_view_interval
+    fmt.set_view_interval(100, 200)
+    assert np.array_equal(fmt.axis.get_view_interval(), [100, 200])
+
+    # .set_data_interval
+    fmt.set_data_interval(50, 60)
+    assert np.array_equal(fmt.axis.get_data_interval(), [50, 60])
+
+    # .set_bounds
+    bounds = [-7, 7]
+    fmt.set_bounds(*bounds)
+    assert np.array_equal(fmt.axis.get_view_interval(), bounds)
+    assert np.array_equal(fmt.axis.get_data_interval(), bounds)
+
+    # .format_data, .format_data_short
+    assert fmt.format_data(100.0) == '\u22121e2'
+    assert fmt.format_data_short(-200.0) == '{:<12g}'.format(200)
+
+    # .get_offset
+    assert fmt.get_offset() == fmt.formatter.get_offset()
+
+    # .set_locs
+    locs = [1.0, 2.0, 3.0]
+    transformed_locs = [-1.0, -2.0, -3.0]
+    fmt.set_locs(locs)
+    assert fmt.locs is locs
+    assert fmt.formatter.locs == transformed_locs
+
+    # .fix_minus
+    val = '-19.0'
+    assert fmt.fix_minus(val) == '\u221219.0'
+    assert fmt.fix_minus(val) == fmt.formatter.fix_minus(val)
+
+    # .__call__ needs to be tested after `set_locs` has been called at
+    # least once.
+    assert fmt(5.0) == '\u22125'
+
+    # .set_formatter
+    prev_axis = fmt.axis
+    fmt.set_formatter(mticker.PercentFormatter())
+    assert isinstance(fmt.formatter, mticker.PercentFormatter)
+    assert fmt.axis is prev_axis
+    assert fmt.formatter.axis is fmt.axis
+    assert fmt.locs is locs
+    assert fmt.formatter.locs == transformed_locs
 
 
 def test_EngFormatter_formatting():

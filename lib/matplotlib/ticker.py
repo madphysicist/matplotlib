@@ -154,6 +154,12 @@ axis.
 :class:`PercentFormatter`
     Format labels as a percentage
 
+:class:`IntegerFormatter`
+    Extension of :class:`StrMethodFormatter` to support integer formats.
+
+:class:`LinearScaleFormatter`
+    Wrap another formatter to display transformed values.
+
 You can derive your own formatter from the Formatter base class by
 simply overriding the ``__call__`` method.  The formatter class has
 access to the axis view and data limits.
@@ -195,7 +201,8 @@ __all__ = ('TickHelper', 'Formatter', 'FixedFormatter',
            'LogFormatterExponent', 'LogFormatterMathtext',
            'IndexFormatter', 'LogFormatterSciNotation',
            'LogitFormatter', 'EngFormatter', 'PercentFormatter',
-           'Locator', 'IndexLocator', 'FixedLocator', 'NullLocator',
+           'LinearScaleFormatter', 'IntegerFormatter', 'Locator',
+           'IndexLocator', 'FixedLocator', 'NullLocator',
            'LinearLocator', 'LogLocator', 'AutoLocator',
            'MultipleLocator', 'MaxNLocator', 'AutoMinorLocator',
            'SymmetricalLogLocator', 'LogitLocator')
@@ -1359,6 +1366,117 @@ class PercentFormatter(Formatter):
 
     def convert_to_pct(self, x):
         return 100.0 * (x / self.xmax)
+
+
+class TransformFormatter(Formatter):
+    """
+    A generalized alternative to `FuncFormatter` that allows the tick
+    values to be transformed arbitrarily before being passed off to
+    the formatting function.
+
+    This class accepts a callable transform and a callable formatter.
+    The transform function may return any type that is acceptable to the
+    formatter, not necessarily just a `float`. For example, using
+    ``int`` as the transform allows integer format strings such as
+    `'{x:d}'` to be used with :class:`StrMethodFormatter`.
+
+    The formatter can be either a :class:`matplotlib.ticker.Formatter`
+    or any other callable with the signature ``formatter(x, pos=None)``.
+    If the formatter is an actual formatter, most methods of this class
+    will delegate directly to it. A notable exception is `set_locs`,
+    which will apply the transformation to each of the passed in
+    locations before delegating. In the case of a generic callable, this
+    class will handle all of the ``Formatter`` functionality directly.
+
+    .. note::
+
+        Instantiating this class with the special case of
+        ``transform=lambda x: x`` makes it exactly equivalent to
+        :class:`matplotlib.ticker.FuncFormatter`, unless `formatter` is
+        set to a ``Formatter`` instance instead of a simple callable.
+    """
+    def __init__(self, transform, formatter=ScalarFormatter()):
+        self.transform = transform
+        self.set_formatter(formatter)
+
+    def set_formatter(self, formatter):
+        """
+        Changes the underlying formatter used to actually format the
+        transformed values.
+
+        The input may be an instance of
+        :class:`matplotlib.ticker.Formatter` or an other callable with
+        the same signature.
+        """
+        self.formatter = formatter
+        self._need_redirect = isinstance(formatter, Formatter)
+        if self.locs is not None:
+            self.set_locs(self.locs)
+        # This will implicitly set the view and data interval for the
+        # underlying transform correctly.
+        self.set_axis(self.axis)
+
+    def __call__(self, x, pos=None):
+        return self.formatter(self.transform(x), pos)
+
+    def _invoke_redirect(self, name, both, *args, **kwargs):
+        """
+        Invokes the specified method on the underlying formatter if
+        possible, or on `self` if not. If `both` is `True`, the
+        formatter's return value if returned if possible. This method
+        allows the actual formatter to be a generic callable rather than
+        a Formatter.
+        """
+        if self._need_redirect:
+            retval = getattr(self.formatter, name)(*args, **kwargs)
+            if not both:
+                return retval
+        # only evaluate this if necessary
+        default = getattr(super(TransformFormatter, self), name)
+        retval2 = default(*args, *kwargs)
+        return retval if self._need_redirect else retval2
+
+    def set_axis(self, ax):
+        self._invoke_redirect('set_axis', True, ax)
+
+    def create_dummy_axis(self, **kwargs):
+        # Share the dummy axis with the underlying formatter rather
+        # than making a new one if possible
+        self._invoke_redirect('create_dummy_axis', False, **kwargs)
+        if self._need_redirect:
+            self.axis = self.formatter.axis
+
+    def set_view_interval(self, vmin, vmax):
+        self._invoke_redirect('set_view_interval', False, vmin, vmax)
+
+    def set_data_interval(self, vmin, vmax):
+        self._invoke_redirect('set_data_interval', False, vmin, vmax)
+
+    def set_bounds(self, vmin, vmax):
+        self._invoke_redirect('set_bounds', False, vmin, vmax)
+
+    def format_data(self, value):
+        return self._invoke_redirect('format_data', False,
+                                     self.transform(value))
+
+    def format_data_short(self, value):
+        return self._invoke_redirect('format_data_short', False,
+                                     self.transform(value))
+
+    def get_offset(self):
+        return self._invoke_redirect('get_offset', False)
+
+    def set_locs(self, locs):
+        """
+        Sets the transformed locs to the underlying formatter, if
+        possible, and the untransformed version to `self`.
+        """
+        if self._need_redirect:
+            self.formatter.set_locs([self.transform(x) for x in locs])
+        super(TransformFormatter, self).set_locs(locs)
+
+    def fix_minus(self, s):
+        return self._invoke_redirect('fix_minus', False, s)
 
 
 class Locator(TickHelper):
