@@ -93,15 +93,13 @@ if counts.min() < 0:
 
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
-ax2 = fig.add_subplot(111, sharex=ax1, sharey=ax1, frameon=False)
+ax2 = fig.add_subplot(111, sharex=ax1, sharey=ax1,
+                      frameon=False, share_tickers=False)
 
 ax1.plot(temp_C, counts, drawstyle='steps-mid')
 
 ax1.xaxis.set_major_formatter(StrMethodFormatter('{x:0.2f}'))
 
-# This step is necessary to allow the shared x-axes to have different
-# Formatter and Locator objects.
-ax2.xaxis.major = Ticker()
 # 0C -> 491.67R (definition), -273.15C (0K)->0R (-491.67F)(definition)
 ax2.xaxis.set_major_locator(ax1.xaxis.get_major_locator())
 ax2.xaxis.set_major_formatter(
