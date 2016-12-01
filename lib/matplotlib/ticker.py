@@ -154,11 +154,8 @@ axis.
 :class:`PercentFormatter`
     Format labels as a percentage
 
-:class:`IntegerFormatter`
-    Extension of :class:`StrMethodFormatter` to support integer formats.
-
-:class:`LinearScaleFormatter`
-    Wrap another formatter to display transformed values.
+:class:`TransformFormatter`
+    Generic form of :class:`FuncFormatter` that transforms input values.
 
 You can derive your own formatter from the Formatter base class by
 simply overriding the ``__call__`` method.  The formatter class has
@@ -201,11 +198,10 @@ __all__ = ('TickHelper', 'Formatter', 'FixedFormatter',
            'LogFormatterExponent', 'LogFormatterMathtext',
            'IndexFormatter', 'LogFormatterSciNotation',
            'LogitFormatter', 'EngFormatter', 'PercentFormatter',
-           'LinearScaleFormatter', 'IntegerFormatter', 'Locator',
-           'IndexLocator', 'FixedLocator', 'NullLocator',
-           'LinearLocator', 'LogLocator', 'AutoLocator',
-           'MultipleLocator', 'MaxNLocator', 'AutoMinorLocator',
-           'SymmetricalLogLocator', 'LogitLocator')
+           'TransformFormatter', 'Locator', 'IndexLocator',
+           'FixedLocator', 'NullLocator', 'LinearLocator', 'LogLocator',
+           'AutoLocator', 'MultipleLocator', 'MaxNLocator',
+           'AutoMinorLocator', 'SymmetricalLogLocator', 'LogitLocator')
 
 
 if six.PY3:
