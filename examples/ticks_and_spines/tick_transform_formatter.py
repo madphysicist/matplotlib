@@ -92,13 +92,10 @@ if counts.min() < 0:
     counts += counts.min()
 
 fig = plt.figure()
-fig.subplots_adjust(hspace=0.3)
-
-ax1 = fig.add_subplot(211)
-ax2 = fig.add_subplot(212, sharex=ax1, sharey=ax1)
+ax1 = fig.add_subplot(111)
+ax2 = fig.add_subplot(111, sharex=ax1, sharey=ax1, frameon=False)
 
 ax1.plot(temp_C, counts, drawstyle='steps-mid')
-ax2.plot(temp_C, counts, drawstyle='steps-mid')
 
 ax1.xaxis.set_major_formatter(StrMethodFormatter('{x:0.2f}'))
 
@@ -106,11 +103,11 @@ ax1.xaxis.set_major_formatter(StrMethodFormatter('{x:0.2f}'))
 # Formatter and Locator objects.
 ax2.xaxis.major = Ticker()
 # 0C -> 491.67R (definition), -273.15C (0K)->0R (-491.67F)(definition)
+ax2.xaxis.set_major_locator(ax1.xaxis.get_major_locator())
 ax2.xaxis.set_major_formatter(
         TransformFormatter(LinearTransform(in_start=-273.15, in_end=0,
                                            out_end=491.67),
                            StrMethodFormatter('{x:0.2f}')))
-ax2.xaxis.set_major_locator(ax1.xaxis.get_major_locator())
 
 # The y-axes share their locators and formatters, so only one needs to
 # be set
@@ -120,11 +117,12 @@ ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
 ax1.yaxis.set_major_formatter(
         TransformFormatter(int, StrMethodFormatter('{x:02X}')))
 
-fig.suptitle('Temperature vs Counts')
-ax1.set_xlabel('Temp (\u00B0C)')
+ax1.set_xlabel('Temperature (\u00B0C)')
 ax1.set_ylabel('Samples (Hex)')
-ax2.set_xlabel('Temp (\u00B0R)')
-ax2.set_ylabel('Samples (Hex)')
+ax2.set_xlabel('Temperature (\u00B0R)')
+
+ax1.xaxis.tick_top()
+ax1.xaxis.set_label_position('top')
 
 plt.show()
 
