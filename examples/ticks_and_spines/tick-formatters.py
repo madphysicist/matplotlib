@@ -19,16 +19,16 @@ def setup(ax):
     ax.set_xlim(0, 5)
     ax.set_ylim(0, 1)
     ax.patch.set_alpha(0.0)
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1.00))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.25))
 
 
 plt.figure(figsize=(8, 5))
-n = 6
+n = 7
 
 # Null formatter
 ax = plt.subplot(n, 1, 1)
 setup(ax)
-ax.xaxis.set_major_locator(ticker.MultipleLocator(1.00))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.25))
 ax.xaxis.set_major_formatter(ticker.NullFormatter())
 ax.xaxis.set_minor_formatter(ticker.NullFormatter())
 ax.text(0.0, 0.1, "NullFormatter()", fontsize=16, transform=ax.transAxes)
@@ -36,8 +36,6 @@ ax.text(0.0, 0.1, "NullFormatter()", fontsize=16, transform=ax.transAxes)
 # Fixed formatter
 ax = plt.subplot(n, 1, 2)
 setup(ax)
-ax.xaxis.set_major_locator(ticker.MultipleLocator(1.0))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.25))
 majors = ["", "0", "1", "2", "3", "4", "5"]
 ax.xaxis.set_major_formatter(ticker.FixedFormatter(majors))
 minors = [""] + ["%.2f" % (x-int(x)) if (x-int(x))
@@ -54,8 +52,6 @@ def major_formatter(x, pos):
 
 ax = plt.subplot(n, 1, 3)
 setup(ax)
-ax.xaxis.set_major_locator(ticker.MultipleLocator(1.00))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.25))
 ax.xaxis.set_major_formatter(ticker.FuncFormatter(major_formatter))
 ax.text(0.0, 0.1, 'FuncFormatter(lambda x, pos: "[%.2f]" % x)',
         fontsize=15, transform=ax.transAxes)
@@ -64,8 +60,6 @@ ax.text(0.0, 0.1, 'FuncFormatter(lambda x, pos: "[%.2f]" % x)',
 # FormatStr formatter
 ax = plt.subplot(n, 1, 4)
 setup(ax)
-ax.xaxis.set_major_locator(ticker.MultipleLocator(1.00))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.25))
 ax.xaxis.set_major_formatter(ticker.FormatStrFormatter(">%d<"))
 ax.text(0.0, 0.1, "FormatStrFormatter('>%d<')",
         fontsize=15, transform=ax.transAxes)
@@ -73,19 +67,23 @@ ax.text(0.0, 0.1, "FormatStrFormatter('>%d<')",
 # Scalar formatter
 ax = plt.subplot(n, 1, 5)
 setup(ax)
-ax.xaxis.set_major_locator(ticker.AutoLocator())
-ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
 ax.xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
 ax.text(0.0, 0.1, "ScalarFormatter()", fontsize=15, transform=ax.transAxes)
 
 # StrMethod formatter
 ax = plt.subplot(n, 1, 6)
 setup(ax)
-ax.xaxis.set_major_locator(ticker.MultipleLocator(1.00))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.25))
 ax.xaxis.set_major_formatter(ticker.StrMethodFormatter("{x}"))
 ax.text(0.0, 0.1, "StrMethodFormatter('{x}')",
         fontsize=15, transform=ax.transAxes)
+
+# TransformFormatter
+ax = plt.subplot(n, 1, 7)
+setup(ax)
+ax.xaxis.set_major_formatter(ticker.TransformFormatter(lambda x: 7 - 2 * x))
+ax.text(0.0, 0.1, "TransformFormatter(lambda x: 7 - 2 * x)",
+        fontsize=15, transform=ax.transAxes)
+
 
 # Push the top of the top axes outside the figure because we only show the
 # bottom spine.

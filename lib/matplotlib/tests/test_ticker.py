@@ -232,11 +232,11 @@ def test_ScalarFormatter_offset_value(left, right, offset):
 def _sub_labels(axis, subs=()):
     "Test whether locator marks subs to be labeled"
     fmt = axis.get_minor_formatter()
-    minor_tlocs = axis.get_minorticklocs()
-    fmt.set_locs(minor_tlocs)
-    coefs = minor_tlocs / 10**(np.floor(np.log10(minor_tlocs)))
+    minor_xlocs = axis.get_minorticklocs()
+    fmt.set_locs(minor_xlocs)
+    coefs = minor_xlocs / 10**(np.floor(np.log10(minor_xlocs)))
     label_expected = [np.round(c) in subs for c in coefs]
-    label_test = [fmt(x) != '' for x in minor_tlocs]
+    label_test = [fmt(x) != '' for x in minor_xlocs]
     assert label_test == label_expected
 
 
@@ -517,12 +517,12 @@ def test_formatstrformatter():
         (100, 0, '%', 120, 100, '120%'),
         (100, 0, '%', 100, 90, '100%'),
         (100, 0, '%', 90, 50, '90%'),
-        (100, 0, '%', 1.7, 40, '2%'),
+        (100, 0, '%', -1.7, 40, '-2%'),
         (100, 1, '%', 90.0, 100, '90.0%'),
         (100, 1, '%', 80.1, 90, '80.1%'),
         (100, 1, '%', 70.23, 50, '70.2%'),
         # 60.554 instead of 60.55: see https://bugs.python.org/issue5118
-        (100, 1, '%', 60.554, 40, '60.6%'),
+        (100, 1, '%', -60.554, 40, '-60.6%'),
         # Check auto decimals over different intervals and values
         (100, None, '%', 95, 1, '95.00%'),
         (1.0, None, '%', 3, 6, '300%'),
@@ -533,84 +533,201 @@ def test_formatstrformatter():
         (1.0, 2, None, 1.2, 100, '120.00'),
         (75, 3, '', 50, 100, '66.667'),
         (42, None, '^^Foobar$$', 21, 12, '50.0^^Foobar$$'),
+     ], ids=[
+        # Check explicitly set decimals over different intervals and values
+        'decimals=0, x>100%',
+        'decimals=0, x=100%',
+        'decimals=0, x<100%',
+        'decimals=0, x<0%',
+        'decimals=1, x>100%',
+        'decimals=1, x=100%',
+        'decimals=1, x<100%',
+        'decimals=1, x<0%',
+        # Check auto decimals over different intervals and values
+        'autodecimal, x<100%, display_range=1',
+        'autodecimal, x>100%, display_range=6 (custom xmax test)',
+        'autodecimal, x<100%, display_range=8.5 (autodecimal test 1)',
+        'autodecimal, x<100%, display_range=8.4 (autodecimal test 2)',
+        'autodecimal, x<-100%, display_range=1e-6 (tiny display range)',
+        # Check percent symbol
+        'None as percent symbol',
+        'Empty percent symbol',
+        'Custom percent symbol'
      ])
 def test_percentformatter(xmax, decimals, symbol, x, display_range, expected):
     formatter = mticker.PercentFormatter(xmax, decimals, symbol)
     assert formatter.format_pct(x, display_range) == expected
 
 
-def test_TransformFormatter():
-    """
-    Verifies that the linear transformations are being done correctly.
-    """
-    def transform(x):
+class TestTransformFormatter:
+    def transform1(self, x):
         return -x
 
-    # Make a formatter using the default underlying formatter,
-    # which is a Formatter instance, not just a generic callable 
-    fmt = mticker.TransformFormatter(transform)
+    def transform2(self, x):
+        return 2 * x
 
-    # Public (non-method) attributes
-    assert fmt.transform is transform
-    assert isinstance(fmt.formatter, mticker.ScalarFormatter)
+    @pytest.fixture()
+    def empty_fmt(self):
+        return mticker.TransformFormatter(self.transform1)
 
-    # .create_dummy_axis
-    assert fmt.axis is None
-    fmt.create_dummy_axis()
-    assert fmt.axis is not None
-    assert fmt.axis is fmt.formatter.axis
+    @pytest.fixture()
+    def fmt(self):
+        fmt = self.empty_fmt()
+        fmt.create_dummy_axis()
+        return fmt
 
-    # .set_axis
-    prev_axis = fmt.axis
-    fmt.set_axis(mticker._DummyAxis())
-    assert fmt.axis is fmt.formatter.axis
-    assert fmt.axis is not prev_axis
+    @pytest.fixture()
+    def loc_fmt(self):
+        fmt = self.fmt()
+        fmt.set_locs([1, 2, 3])
+        return fmt
 
-    # .set_view_interval
-    fmt.set_view_interval(100, 200)
-    assert np.array_equal(fmt.axis.get_view_interval(), [100, 200])
+    def test_attributes(self, empty_fmt):
+        # Using == is the right way to compare bound methods:
+        # http://stackoverflow.com/q/41900639/2988730
+        assert empty_fmt.transform == self.transform1
+        assert isinstance(empty_fmt.formatter, mticker.ScalarFormatter)
 
-    # .set_data_interval
-    fmt.set_data_interval(50, 60)
-    assert np.array_equal(fmt.axis.get_data_interval(), [50, 60])
+    def test_create_dummy_axis(self, empty_fmt):
+        assert empty_fmt.axis is None
+        assert empty_fmt.formatter.axis is None
 
-    # .set_bounds
-    bounds = [-7, 7]
-    fmt.set_bounds(*bounds)
-    assert np.array_equal(fmt.axis.get_view_interval(), bounds)
-    assert np.array_equal(fmt.axis.get_data_interval(), bounds)
+        empty_fmt.create_dummy_axis()
 
-    # .format_data, .format_data_short
-    assert fmt.format_data(100.0) == '\u22121e2'
-    assert fmt.format_data_short(-200.0) == '{:<12g}'.format(200)
+        assert isinstance(empty_fmt.axis, mticker._DummyAxis)
+        assert isinstance(empty_fmt.formatter.axis, mticker._DummyAxis)
+        assert empty_fmt.axis is not empty_fmt.formatter.axis
 
-    # .get_offset
-    assert fmt.get_offset() == fmt.formatter.get_offset()
+    def test_set_axis(self, fmt):
+        prev_axis = fmt.axis
+        prev_inner_axis = fmt.formatter.axis
 
-    # .set_locs
-    locs = [1.0, 2.0, 3.0]
-    transformed_locs = [-1.0, -2.0, -3.0]
-    fmt.set_locs(locs)
-    assert fmt.locs is locs
-    assert fmt.formatter.locs == transformed_locs
+        fmt.set_axis(mticker._DummyAxis())
 
-    # .fix_minus
-    val = '-19.0'
-    assert fmt.fix_minus(val) == '\u221219.0'
-    assert fmt.fix_minus(val) == fmt.formatter.fix_minus(val)
+        assert fmt.axis is not None
+        assert fmt.axis is not prev_axis
+        assert fmt.formatter.axis is prev_inner_axis
 
-    # .__call__ needs to be tested after `set_locs` has been called at
-    # least once.
-    assert fmt(5.0) == '\u22125'
+        fmt.set_axis(None)
+        assert fmt.axis is None
+        assert fmt.formatter.axis is None
 
-    # .set_formatter
-    prev_axis = fmt.axis
-    fmt.set_formatter(mticker.PercentFormatter())
-    assert isinstance(fmt.formatter, mticker.PercentFormatter)
-    assert fmt.axis is prev_axis
-    assert fmt.formatter.axis is fmt.axis
-    assert fmt.locs is locs
-    assert fmt.formatter.locs == transformed_locs
+    def test_set_view_interval(self, fmt):
+        bounds = [100, 200]
+        xbounds = [self.transform1(x) for x in bounds]
+
+        fmt.set_view_interval(*bounds)
+
+        assert np.array_equal(fmt.axis.get_view_interval(), bounds)
+        assert np.array_equal(fmt.formatter.axis.get_view_interval(),
+                              xbounds)
+
+    def test_set_data_interval(self, fmt):
+        bounds = [50, 60]
+        xbounds = [self.transform1(x) for x in bounds]
+
+        fmt.set_data_interval(*bounds)
+
+        assert np.array_equal(fmt.axis.get_data_interval(), bounds)
+        assert np.array_equal(fmt.formatter.axis.get_data_interval(), xbounds)
+
+    def test_set_bounds(self, fmt):
+        bounds = [-7, 7]
+        xbounds = [self.transform1(x) for x in bounds]
+
+        fmt.set_bounds(*bounds)
+
+        assert np.array_equal(fmt.axis.get_view_interval(), bounds)
+        assert np.array_equal(fmt.axis.get_data_interval(), bounds)
+        assert np.array_equal(fmt.formatter.axis.get_view_interval(), xbounds)
+        assert np.array_equal(fmt.formatter.axis.get_data_interval(), xbounds)
+
+    def test_format_data(self, fmt):
+        assert fmt.format_data(100.0) == '\N{MINUS SIGN}1e2'
+
+    def test_format_data_short(self, fmt):
+        assert fmt.format_data_short(-200.0) == '{:<12g}'.format(200)
+
+    def test_get_offset(self, fmt):
+        assert fmt.get_offset() == fmt.formatter.get_offset()
+
+    def test_set_locs(self, fmt):
+        locs = [1.0, 2.0, 3.0]
+        xlocs = [self.transform1(x) for x in locs]
+
+        fmt.set_locs(locs)
+
+        # Currently, `fmt.locs is locs` works, but should not be
+        # tested for since it is not contractually guaranteed.
+        assert fmt.locs == locs
+        assert fmt.formatter.locs == xlocs
+
+        fmt.set_locs(None)
+        assert fmt.locs is None
+        assert fmt.formatter.locs is None
+
+    def test_fix_minus(self, fmt):
+        val = '-19.0'
+        with matplotlib.rc_param(rc={'text.usetex': False}):
+            assert fmt.fix_minus(val) == '\N{MINUS SIGN}19.0'
+            assert fmt.fix_minus(val) == fmt.formatter.fix_minus(val)
+
+    def test_call(self, loc_fmt):
+        # .__call__ can only be tested after `set_locs` has been called
+        # at least once because of the default underlying formatter.
+        with matplotlib.rc_param(rc={'text.usetex': False}):
+            assert loc_fmt(5.0) == '\N{MINUS SIGN}5'
+
+    def test_set_formatter(self, loc_fmt):
+        prev_axis, prev_inner_axis = loc_fmt.axis, loc_fmt.formatter.axis
+        prev_locs, prev_inner_locs = loc_fmt.locs, loc_fmt.formatter.locs
+
+        bounds = [123, 456]
+        xbounds = [self.transform1(x) for x in bounds]
+        inner = mticker.PercentFormatter()
+
+        # Set the bounds first to verify that they remain constant while
+        # inner's axis object changes
+        loc_fmt.set_bounds(*bounds)
+        loc_fmt.set_formatter(inner)
+
+        assert loc_fmt.formatter is inner
+        assert loc_fmt.axis is prev_axis
+        # Inner axis is NOT preserved when the formatter changes,
+        # but the bounds are the same
+        assert loc_fmt.formatter.axis is not prev_inner_axis
+        assert isinstance(loc_fmt.formatter.axis, mticker._DummyAxis)
+        assert np.array_equal(loc_fmt.formatter.axis.get_view_interval(),
+                              xbounds)
+        assert np.array_equal(loc_fmt.formatter.axis.get_data_interval(),
+                              xbounds)
+        assert loc_fmt.locs is prev_locs
+        # `is` won't work here because a new copy is made for the new
+        # formatter.
+        assert loc_fmt.formatter.locs == prev_inner_locs
+
+    def test_set_transform(self, fmt):
+        prev_axis, prev_inner_axis = fmt.axis, fmt.formatter.axis
+        prev_locs, prev_inner_locs = fmt.locs, fmt.formatter.locs
+
+        bounds = [-1, 4]
+        xbounds = [self.transform2(x) for x in bounds]
+        xlocs = [self.transform2(x) for x in prev_locs]
+
+        fmt.set_bounds(*bounds)
+        fmt.set_transform(self.transform2)
+
+        assert fmt.axis is prev_axis
+        assert np.array_equal(fmt.axis.get_view_interval(), bounds)
+        assert np.array_equal(fmt.axis.get_data_interval(), bounds)
+        assert fmt.locs is prev_locs
+        # Inner axis IS preserved when the formatter changes, but the
+        # bounds change
+        assert fmt.formatter.axis is prev_inner_axis
+        assert np.array_equal(fmt.formatter.axis.get_view_interval(), xbounds)
+        assert np.array_equal(fmt.formatter.axis.get_data_interval(), xbounds)
+        assert fmt.formatter.locs is not prev_inner_locs
+        assert fmt.formatter.locs == xlocs
 
 
 def test_EngFormatter_formatting():

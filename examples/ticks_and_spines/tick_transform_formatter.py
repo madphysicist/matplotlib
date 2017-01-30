@@ -27,6 +27,7 @@ from matplotlib.ticker import (
     TransformFormatter, StrMethodFormatter, MaxNLocator
 )
 
+
 class LinearTransform:
     """
     A callable class that transforms input values to output according to
@@ -42,7 +43,7 @@ class LinearTransform:
           - none: no-op
           - in_start: translation to zero
           - out_start: translation from zero
-          - in_end: scaling to one (divide input by in_end) 
+          - in_end: scaling to one (divide input by in_end)
           - out_end: scaling from one (multiply input by in_end)
           - in_start, out_start: translation
           - in_end, out_end: scaling (in_start and out_start zero)
@@ -123,4 +124,3 @@ ax1.xaxis.tick_top()
 ax1.xaxis.set_label_position('top')
 
 plt.show()
-
